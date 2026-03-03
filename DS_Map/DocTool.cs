@@ -19,82 +19,9 @@ namespace DSPRE
     internal class DocTool
     {
         private static bool _eventEditorPrereqsReady = false;
-        public static void ExportAll()
+
+        public static void ExportDocs(string docsFolderPath)
         {
-            // Backwards-compat wrapper
-            ExportDexExports();
-        }
-
-        public static void ExportCsv()
-        {
-            // Create the subfolder Docs in the executable directory and write the CSV files there
-            string executablePath = AppDomain.CurrentDomain.BaseDirectory;
-            string docsFolderPath = Path.Combine(executablePath, "Docs");
-
-            string pokePersonalDataPath = Path.Combine(docsFolderPath, "PokemonPersonalData.csv");
-            string learnsetDataPath = Path.Combine(docsFolderPath, "LearnsetData.csv");
-            string evolutionDataPath = Path.Combine(docsFolderPath, "EvolutionData.csv");
-            string trainerDataPath = Path.Combine(docsFolderPath, "TrainerData.txt");
-            string moveDataPath = Path.Combine(docsFolderPath, "MoveData.csv");
-            string TMHMDataPath = Path.Combine(docsFolderPath, "TMHMData.csv");
-            string eggMoveDataPath = Path.Combine(docsFolderPath, "EggMoveData.csv");
-
-            DSUtils.TryUnpackNarcs(new List<DirNames> {
-                DirNames.personalPokeData,
-                DirNames.learnsets,
-                DirNames.evolutions,
-                DirNames.trainerParty,
-                DirNames.trainerProperties,
-                DirNames.moveData,
-                DirNames.itemData
-            });
-
-            string[] pokeNames = RomInfo.GetPokemonNames();
-            string[] itemNames = RomInfo.GetItemNames();
-            string[] abilityNames = RomInfo.GetAbilityNames();
-            string[] moveNames = RomInfo.GetAttackNames();
-            string[] trainerNames = RomInfo.GetSimpleTrainerNames();
-            string[] trainerClassNames = RomInfo.GetTrainerClassNames();
-            string[] typeNames = RomInfo.GetTypeNames();
-
-            // Handle Forms
-            int extraCount = RomInfo.GetPersonalFilesCount() - pokeNames.Length;
-            string[] extraNames = new string[extraCount];
-
-            for (int i = 0; i < extraCount; i++)
-            {
-                PokeDatabase.PersonalData.PersonalExtraFiles extraEntry = PokeDatabase.PersonalData.personalExtraFiles[i];
-                extraNames[i] = pokeNames[extraEntry.monId] + " - " + extraEntry.description;
-            }
-
-            pokeNames = pokeNames.Concat(extraNames).ToArray();
-
-            // Create the Docs folder if it doesn't exist
-            if (!Directory.Exists(docsFolderPath))
-            {
-                Directory.CreateDirectory(docsFolderPath);
-            }
-
-            var eggMoveEditor = new EggMoveEditor();
-            eggMoveEditor.PopulateEggMoveData();
-            ExportEggMoveDataToCSV(eggMoveEditor.GetEggMoveData(), eggMoveDataPath, pokeNames, moveNames);
-
-            ExportPersonalDataToCSV(pokePersonalDataPath, pokeNames, abilityNames, typeNames, itemNames);
-            ExportLearnsetDataToCSV(learnsetDataPath, pokeNames, moveNames);
-            ExportEvolutionDataToCSV(evolutionDataPath, pokeNames, itemNames, moveNames);
-            ExportTrainersToText(trainerDataPath, trainerNames, trainerClassNames, pokeNames, itemNames, moveNames, abilityNames);
-            ExportMoveDataToCSV(moveDataPath, moveNames, typeNames);
-            ExportTMHMDataToCSV(TMHMDataPath, pokeNames);
-
-            MessageBox.Show($"CSV files exported successfully to path: {docsFolderPath}");
-        }
-
-        public static void ExportDexExports()
-        {
-            // Create the subfolder Docs in the executable directory and write the CSV files there
-            string executablePath = AppDomain.CurrentDomain.BaseDirectory;
-            string docsFolderPath = Path.Combine(executablePath, "Docs");
-
             string pokePersonalDataPath = Path.Combine(docsFolderPath, "PokemonPersonalData.csv");
             string learnsetDataPath = Path.Combine(docsFolderPath, "LearnsetData.csv");
             string evolutionDataPath = Path.Combine(docsFolderPath, "EvolutionData.csv");
@@ -155,15 +82,12 @@ namespace DSPRE
             ExportTMHMDataToCSV(TMHMDataPath, pokeNames);
 
             var eggMoveEditor = new EggMoveEditor();
-            eggMoveEditor.PopulateEggMoveData();
             ExportEggMoveDataToCSV(eggMoveEditor.GetEggMoveData(), eggMoveDataPath, pokeNames, moveNames);
 
             ExportEventOverworldsToCSV(eventOverworldsPath);
             ExportMapHeadersToCSV(mapHeadersPath);
             ExportEncountersToJson(encounterJsonPath);
             ExportScriptsToDocs(Path.Combine(docsFolderPath, "scripts"));
-
-            MessageBox.Show($"CSV files exported successfully to path: {docsFolderPath}");
         }
 
 
@@ -178,6 +102,9 @@ namespace DSPRE
                 DirNames.trainerProperties,
             });
 
+            RomInfo.SetOWtable();
+            RomInfo.Set3DOverworldsDict();
+            RomInfo.ReadOWTable();
         }
 
         private static void ExportEncountersToJson(string outputPath)

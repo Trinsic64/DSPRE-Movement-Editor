@@ -725,7 +725,7 @@
             this.generateCSVToolStripMenuItem,
             this.researchHelperToolStripMenuItem});
             this.aboutToolStripMenuItem.Name = "aboutToolStripMenuItem";
-            this.aboutToolStripMenuItem.Size = new System.Drawing.Size(47, 20);
+            this.aboutToolStripMenuItem.Size = new System.Drawing.Size(46, 20);
             this.aboutToolStripMenuItem.Text = "Tools";
             // 
             // romToolboxToolStripMenuItem
@@ -813,7 +813,7 @@
             this.buildFomFolderToolStripMenuItem.Image = global::DSPRE.Properties.Resources.folderToNarcIcon;
             this.buildFomFolderToolStripMenuItem.ImageScaling = System.Windows.Forms.ToolStripItemImageScaling.None;
             this.buildFomFolderToolStripMenuItem.Name = "buildFomFolderToolStripMenuItem";
-            this.buildFomFolderToolStripMenuItem.Size = new System.Drawing.Size(228, 38);
+            this.buildFomFolderToolStripMenuItem.Size = new System.Drawing.Size(214, 38);
             this.buildFomFolderToolStripMenuItem.Text = "Build from Folder";
             this.buildFomFolderToolStripMenuItem.Click += new System.EventHandler(this.buildFromFolderToolStripMenuItem_Click);
             // 
@@ -822,7 +822,7 @@
             this.unpackToFolderToolStripMenuItem.Image = global::DSPRE.Properties.Resources.narcToFolderIcon;
             this.unpackToFolderToolStripMenuItem.ImageScaling = System.Windows.Forms.ToolStripItemImageScaling.None;
             this.unpackToFolderToolStripMenuItem.Name = "unpackToFolderToolStripMenuItem";
-            this.unpackToFolderToolStripMenuItem.Size = new System.Drawing.Size(228, 38);
+            this.unpackToFolderToolStripMenuItem.Size = new System.Drawing.Size(214, 38);
             this.unpackToFolderToolStripMenuItem.Text = "Unpack to Folder";
             this.unpackToFolderToolStripMenuItem.Click += new System.EventHandler(this.unpackToFolderToolStripMenuItem_Click);
             // 
@@ -840,7 +840,7 @@
             this.listBasedToolStripMenuItem.Image = global::DSPRE.Properties.Resources.listbasedRenameIcon;
             this.listBasedToolStripMenuItem.ImageScaling = System.Windows.Forms.ToolStripItemImageScaling.None;
             this.listBasedToolStripMenuItem.Name = "listBasedToolStripMenuItem";
-            this.listBasedToolStripMenuItem.Size = new System.Drawing.Size(212, 38);
+            this.listBasedToolStripMenuItem.Size = new System.Drawing.Size(185, 38);
             this.listBasedToolStripMenuItem.Text = "List-Based";
             this.listBasedToolStripMenuItem.Click += new System.EventHandler(this.listBasedToolStripMenuItem_Click);
             // 
@@ -849,7 +849,7 @@
             this.contentBasedToolStripMenuItem.Image = global::DSPRE.Properties.Resources.contentbasedRenameIcon;
             this.contentBasedToolStripMenuItem.ImageScaling = System.Windows.Forms.ToolStripItemImageScaling.None;
             this.contentBasedToolStripMenuItem.Name = "contentBasedToolStripMenuItem";
-            this.contentBasedToolStripMenuItem.Size = new System.Drawing.Size(212, 38);
+            this.contentBasedToolStripMenuItem.Size = new System.Drawing.Size(185, 38);
             this.contentBasedToolStripMenuItem.Text = "Content-Based";
             this.contentBasedToolStripMenuItem.Click += new System.EventHandler(this.contentBasedToolStripMenuItem_Click);
             // 
@@ -896,7 +896,7 @@
             this.texturizeNSBMDToolStripMenuItem.Image = global::DSPRE.Properties.Resources.addTextureToNSBMD;
             this.texturizeNSBMDToolStripMenuItem.ImageScaling = System.Windows.Forms.ToolStripItemImageScaling.None;
             this.texturizeNSBMDToolStripMenuItem.Name = "texturizeNSBMDToolStripMenuItem";
-            this.texturizeNSBMDToolStripMenuItem.Size = new System.Drawing.Size(250, 38);
+            this.texturizeNSBMDToolStripMenuItem.Size = new System.Drawing.Size(251, 38);
             this.texturizeNSBMDToolStripMenuItem.Text = "Add/Replace NSBMD textures";
             this.texturizeNSBMDToolStripMenuItem.Click += new System.EventHandler(this.nsbmdAddTexButton_Click);
             // 
@@ -905,7 +905,7 @@
             this.untexturizeToolStripMenuItem.Image = global::DSPRE.Properties.Resources.removeTextureNSBMD;
             this.untexturizeToolStripMenuItem.ImageScaling = System.Windows.Forms.ToolStripItemImageScaling.None;
             this.untexturizeToolStripMenuItem.Name = "untexturizeToolStripMenuItem";
-            this.untexturizeToolStripMenuItem.Size = new System.Drawing.Size(250, 38);
+            this.untexturizeToolStripMenuItem.Size = new System.Drawing.Size(251, 38);
             this.untexturizeToolStripMenuItem.Text = "Remove textures from NSBMD";
             this.untexturizeToolStripMenuItem.Click += new System.EventHandler(this.nsbmdRemoveTexButton_Click);
             // 
@@ -914,7 +914,7 @@
             this.extractNSBTXFromNSBMDToolStripMenuItem.Image = global::DSPRE.Properties.Resources.saveTextureFromNSBMD;
             this.extractNSBTXFromNSBMDToolStripMenuItem.ImageScaling = System.Windows.Forms.ToolStripItemImageScaling.None;
             this.extractNSBTXFromNSBMDToolStripMenuItem.Name = "extractNSBTXFromNSBMDToolStripMenuItem";
-            this.extractNSBTXFromNSBMDToolStripMenuItem.Size = new System.Drawing.Size(250, 38);
+            this.extractNSBTXFromNSBMDToolStripMenuItem.Size = new System.Drawing.Size(251, 38);
             this.extractNSBTXFromNSBMDToolStripMenuItem.Text = "Save textures from NSBMD";
             this.extractNSBTXFromNSBMDToolStripMenuItem.Click += new System.EventHandler(this.nsbmdExportTexButton_Click);
             // 
@@ -937,9 +937,9 @@
             // generateDexExportsToolStripMenuItem
             // 
             this.generateDexExportsToolStripMenuItem.Name = "generateDexExportsToolStripMenuItem";
-            this.generateDexExportsToolStripMenuItem.Size = new System.Drawing.Size(184, 22);
-            this.generateDexExportsToolStripMenuItem.Text = "Generate Dex Exports";
-            this.generateDexExportsToolStripMenuItem.Click += new System.EventHandler(this.generateDexExportsToolStripMenuItem_Click);
+            this.generateDexExportsToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.generateDexExportsToolStripMenuItem.Text = "Export Docs";
+            this.generateDexExportsToolStripMenuItem.Click += new System.EventHandler(this.exportDocsToolStripMenuItem_Click);
             // 
             // researchHelperToolStripMenuItem
             // 
