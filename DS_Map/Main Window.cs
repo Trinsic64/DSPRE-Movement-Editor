@@ -1733,24 +1733,41 @@ namespace DSPRE
             form.Show();
         }
 
-        private void generateCSVToolStripMenuItem_Click(object sender, EventArgs e)
+        private void exportDocsToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            Helpers.statusLabelMessage("Exporting to CSV...");
-            Update();
-            DocTool.ExportCsv();
+            // Open folder dialog to select destination for exported docs
+            var folderDialog = new CommonOpenFileDialog
+            {
+                IsFolderPicker = true,
+                Multiselect = false,
+                Title = "Select destination folder for exported documentation"
+            };
 
-            Helpers.statusLabelMessage();
-            Update();
-        }
+            if (folderDialog.ShowDialog() != CommonFileDialogResult.Ok)
+            {
+                return;
+            }
 
-        private void generateDexExportsToolStripMenuItem_Click(object sender, EventArgs e)
-        {
+            string exportPath = folderDialog.FileName;
+
+            if (!Directory.Exists(exportPath))
+            {
+                MessageBox.Show("The selected path is not a valid directory.", "Invalid path", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
             Helpers.statusLabelMessage("Exporting CSV/JSON/Scripts...");
             Update();
-            DocTool.ExportDexExports();
-
+            DocTool.ExportDocs(exportPath);
             Helpers.statusLabelMessage();
             Update();
+
+            var successMessage = MessageBox.Show("Documentation exported successfully.\n\nDo you want to open the export folder?", "Export complete", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+
+            if (successMessage == DialogResult.Yes)
+            {
+                Helpers.OpenFileWithDefaultApp(exportPath);
+            }
         }
 
         private void flyWarpEditorToolStripMenuItem_Click(object sender, EventArgs e)
