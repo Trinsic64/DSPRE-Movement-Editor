@@ -27,6 +27,7 @@ namespace DSPRE.Editors
         public EventEditor()
         {
             InitializeComponent();
+            EnsureMovementEditorTab();
         }
 
         #region Event Editor
@@ -42,6 +43,7 @@ namespace DSPRE.Editors
         public const byte tileSize = 16;
         public EventFile currentEvFile;
         public Event selectedEvent;
+        private ushort? _preferredMovementHeaderId;
 
         /* Painters to draw the matrix grid */
         public Pen eventPen;
@@ -313,9 +315,77 @@ namespace DSPRE.Editors
                         }
                     }
                 }
+
+                /* Movement Editor preview overlay */
+                if (movementEditorTabPage != null && eventsTabControl.SelectedTab == movementEditorTabPage && _previewPathTiles != null && _previewPathTiles.Count > 0 &&
+                    _previewAnchorX.HasValue && _previewAnchorY.HasValue)
+                {
+                    DrawMovementPreviewOverlay(g);
+                }
             }
 
             eventPictureBox.Invalidate();
+        }
+
+        private void DrawMovementPreviewOverlay(Graphics g)
+        {
+            if (_previewPathTiles == null || _previewPathTiles.Count == 0) return;
+            bool showPath = movementShowPathCheckBox?.Checked ?? true;
+            bool showGhost = movementShowGhostCheckBox?.Checked ?? true;
+            bool showMarkers = movementShowMarkersCheckBox?.Checked ?? true;
+            int ts = tileSize + 1;
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            if (showPath)
+            {
+                using (var basePen = new Pen(Color.White, 3f))
+                using (var selectedPen = new Pen(Color.Yellow, 3f))
+                {
+                    if (_previewPathSegments != null && _previewPathSegments.Count > 0)
+                    {
+                        foreach (var segment in _previewPathSegments)
+                        {
+                            var pen = _previewSelectedCommandRows.Contains(segment.commandRow) ? selectedPen : basePen;
+                            Point start = new Point(segment.x1 * ts + ts / 2, segment.y1 * ts + ts / 2);
+                            Point end = new Point(segment.x2 * ts + ts / 2, segment.y2 * ts + ts / 2);
+                            g.DrawLine(pen, start, end);
+                        }
+                    }
+                    else if (_previewPathTiles.Count >= 2)
+                    {
+                        var points = _previewPathTiles.Select(p => new Point(p.x * ts + ts / 2, p.y * ts + ts / 2)).ToArray();
+                        g.DrawLines(basePen, points);
+                    }
+                }
+            }
+            if (showMarkers)
+            {
+                using (var font = new Font("Segoe UI", 12f, FontStyle.Bold))
+                using (var brush = new SolidBrush(Color.White))
+                using (var outlineBrush = new SolidBrush(Color.Black))
+                {
+                    foreach (var marker in _previewCommandMarkers)
+                    {
+                        int cx = marker.x * ts + ts / 2;
+                        int cy = marker.y * ts + ts / 2;
+                        string num = marker.commandIndex.ToString();
+                        var size = g.MeasureString(num, font);
+                        float tx = cx - size.Width / 2f;
+                        float ty = cy - size.Height / 2f;
+                        for (int dx = -1; dx <= 1; dx++)
+                            for (int dy = -1; dy <= 1; dy++)
+                                if (dx != 0 || dy != 0)
+                                    g.DrawString(num, font, outlineBrush, tx + dx, ty + dy);
+                        g.DrawString(num, font, brush, tx, ty);
+                    }
+                }
+            }
+            if (showGhost && _previewPathTiles.Count > 0)
+            {
+                var last = _previewPathTiles[_previewPathTiles.Count - 1];
+                int gx = last.x * ts;
+                int gy = last.y * ts;
+                g.FillRectangle(Brushes.White, gx + 2, gy + 2, ts - 4, ts - 4);
+            }
         }
         private void DrawWarpCollisions(Graphics g)
         {
@@ -656,6 +726,85 @@ namespace DSPRE.Editors
             return false;
         }
         #endregion
+
+        /// <summary>
+        /// Opens the Event Editor and navigates to a specific event file.
+        /// </summary>
+        /// <param name="parent">The parent MainProgram instance</param>
+        /// <param name="eventFileID">The event file ID to open</param>
+        public void OpenEventEditor(MainProgram parent, int eventFileID)
+        {
+            OpenEventEditor(parent, eventFileID, null);
+        }
+
+        public void OpenEventEditor(MainProgram parent, int eventFileID, ushort? preferredHeaderId)
+        {
+            SetupEventEditor(parent);
+            _preferredMovementHeaderId = preferredHeaderId;
+
+            if (eventFileID >= 0 && eventFileID < selectEventComboBox.Items.Count)
+            {
+                selectEventComboBox.SelectedIndex = eventFileID;
+            }
+
+            if (EditorPanels.PopoutRegistry.TryGetHost(this, out var host))
+            {
+                host.Focus();
+            }
+            else
+            {
+                EditorPanels.mainTabControl.SelectedTab = EditorPanels.eventEditorTabPage;
+            }
+        }
+
+        public void OpenEventEditorWithOverworld(MainProgram parent, int eventFileID, int overworldIndex)
+        {
+            OpenEventEditor(parent, eventFileID);
+
+            // Select the Overworlds tab and the specific overworld
+            eventsTabControl.SelectedTab = overworldsTabPage;
+            if (overworldIndex >= 0 && overworldIndex < overworldsListBox.Items.Count)
+            {
+                overworldsListBox.SelectedIndex = overworldIndex;
+            }
+        }
+
+        public void OpenEventEditorWithSpawnable(MainProgram parent, int eventFileID, int spawnableIndex)
+        {
+            OpenEventEditor(parent, eventFileID);
+
+            // Select the Spawnables tab and the specific spawnable
+            eventsTabControl.SelectedTab = signsTabPage;
+            if (spawnableIndex >= 0 && spawnableIndex < spawnablesListBox.Items.Count)
+            {
+                spawnablesListBox.SelectedIndex = spawnableIndex;
+            }
+        }
+
+        public void OpenEventEditorWithTrigger(MainProgram parent, int eventFileID, int triggerIndex)
+        {
+            OpenEventEditor(parent, eventFileID);
+
+            // Select the Triggers tab and the specific trigger
+            eventsTabControl.SelectedTab = triggersTabPage;
+            if (triggerIndex >= 0 && triggerIndex < triggersListBox.Items.Count)
+            {
+                triggersListBox.SelectedIndex = triggerIndex;
+            }
+        }
+
+        public void OpenEventEditorWithWarp(MainProgram parent, int eventFileID, int warpIndex)
+        {
+            OpenEventEditor(parent, eventFileID);
+
+            // Select the Warps tab and the specific warp
+            eventsTabControl.SelectedTab = warpsTabPage;
+            if (warpIndex >= 0 && warpIndex < warpsListBox.Items.Count)
+            {
+                warpsListBox.SelectedIndex = warpIndex;
+            }
+        }
+
         public void SetupEventEditor(MainProgram parent, bool force = false)
         {
             if (eventEditorIsReady && !force) return;
@@ -831,6 +980,7 @@ namespace DSPRE.Editors
             _parent.toolStripProgressBar.Value = 0;
             _parent.toolStripProgressBar.Visible = false;
 
+            EnsureMovementEditorTab();
             Helpers.statusLabelMessage();
         }
         private void addEventFileButton_Click(object sender, EventArgs e)
@@ -869,6 +1019,7 @@ namespace DSPRE.Editors
             Helpers.EnableHandlers();
 
             CenterEventViewOnEntities();
+            PrimeMovementEditorContext();
         }
         private void eventShiftLeftButton_Click(object sender, EventArgs e)
         {
@@ -1533,6 +1684,13 @@ namespace DSPRE.Editors
         }
         private void eventsTabControl_SelectedIndexChanged(object sender, EventArgs e)
         {
+            if (eventPictureBox != null && eventPanel != null && eventPanel.Controls.Contains(eventPictureBox))
+                eventPictureBox.BringToFront();
+            if (eventsTabControl.SelectedTab == movementEditorTabPage)
+            {
+                PrimeMovementEditorContext();
+                DisplayActiveEvents();
+            }
             if (eventsTabControl.SelectedTab == signsTabPage)
             {
                 int spawnablesCount = spawnablesListBox.Items.Count;
@@ -2493,6 +2651,251 @@ namespace DSPRE.Editors
             }
             newImage.Save(imageSFD.FileName);
             MessageBox.Show("Screenshot saved.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private void movementCommandListView_SelectedIndexChanged(object sender, EventArgs e)
+        {
+
+        }
+
+        private void movementActionButtonsRow_Paint(object sender, PaintEventArgs e)
+        {
+
+        }
+
+        private void movementModeTlp_Paint(object sender, PaintEventArgs e)
+        {
+
+        }
+
+        private void movementBtnUp_Click(object sender, EventArgs e)
+        {
+            MovementDirectionPad_Click("North");
+        }
+
+        private void movementOnSpotCheckBox_CheckedChanged(object sender, EventArgs e)
+        {
+            MovementSetOrTypeComboBox_SelectedIndexChanged(sender, e);
+        }
+
+        private void movementHeaderTable_Paint(object sender, PaintEventArgs e)
+        {
+
+        }
+
+        private void movementOverworldIdComboBox_SelectedIndexChanged_1(object sender, EventArgs e)
+        {
+            MovementOverworldIdComboBox_SelectedIndexChanged(sender, e);
+        }
+
+        private void movementDeleteActionButton_Click_1(object sender, EventArgs e)
+        {
+            MovementDeleteActionButton_Click(sender, e);
+        }
+
+        private void movementActionComboBox_SelectedIndexChanged_1(object sender, EventArgs e)
+        {
+            MovementActionComboBox_SelectedIndexChanged(sender, e);
+        }
+
+        private void movementNewActionButton_Click_1(object sender, EventArgs e)
+        {
+            MovementNewActionButton_Click(sender, e);
+        }
+
+        private void movementScriptFileComboBox_SelectedIndexChanged_1(object sender, EventArgs e)
+        {
+            MovementScriptFileComboBox_SelectedIndexChanged(sender, e);
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            MovementNewActionButton_Click(sender, e);
+        }
+
+        private void movementCommandTablePanel_Paint(object sender, PaintEventArgs e)
+        {
+
+        }
+
+        private void movementSplitContainer_Panel2_Paint(object sender, PaintEventArgs e)
+        {
+
+        }
+
+        private void movementLeftStack_Paint(object sender, PaintEventArgs e)
+        {
+
+        }
+
+        private void tableLayoutPanel1_Paint(object sender, PaintEventArgs e)
+        {
+
+        }
+
+        private void movementTypeComboBox_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            MovementSetOrTypeComboBox_SelectedIndexChanged(sender, e);
+        }
+
+        private void movementTypeLabel_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void movementBtnDown_Click(object sender, EventArgs e)
+        {
+            MovementDirectionPad_Click("South");
+        }
+
+        private void button10_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void button13_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void UndoButton_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void button9_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void signsTabPage_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void movementPadTable_Paint(object sender, PaintEventArgs e)
+        {
+
+        }
+
+        private void comboBox5_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            MovementActionComboBox_SelectedIndexChanged(sender, e);
+        }
+
+        private void button5_Click(object sender, EventArgs e)
+        {
+            MovementNewActionButton_Click(sender, e);
+        }
+
+        private void movementLeftPanel_Paint(object sender, PaintEventArgs e)
+        {
+
+        }
+
+        private void button6_Click(object sender, EventArgs e)
+        {
+            MovementDeleteActionButton_Click(sender, e);
+        }
+
+        private void movementDirectionPadGroup_Enter(object sender, EventArgs e)
+        {
+
+        }
+
+        private void SetScriptFileButton_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void groupBox2_Enter(object sender, EventArgs e)
+        {
+
+        }
+
+        private void tableLayoutPanel2_Paint(object sender, PaintEventArgs e)
+        {
+
+        }
+
+        private void label1_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void comboBox1_SelectedIndexChanged(object sender, EventArgs e)
+        {
+
+        }
+
+        private void movementSplitContainer_Panel1_Paint(object sender, PaintEventArgs e)
+        {
+
+        }
+
+        private void UndoListChangesButton_Click(object sender, EventArgs e)
+        {
+            MovementUndoButton_Click(sender, e);
+        }
+
+        private void ActionToolboxBox_Enter(object sender, EventArgs e)
+        {
+
+        }
+
+        private void PasteListButton_Click(object sender, EventArgs e)
+        {
+            MovementPasteButton_Click(sender, e);
+        }
+
+        private void CopyListButton_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void MoveListDownButton_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void MoveListUpButton_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void OverworldIDDropdown_SelectedIndexChanged(object sender, EventArgs e)
+        {
+
+        }
+
+        private void checkBox1_CheckedChanged(object sender, EventArgs e)
+        {
+
+        }
+
+        private void OWCheckBox_CheckedChanged(object sender, EventArgs e)
+        {
+
+        }
+
+        private void ExportActionButton_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void label1_Click_1(object sender, EventArgs e)
+        {
+
+        }
+
+        private void SetInvisibleButton_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void button2_Click(object sender, EventArgs e)
+        {
+
         }
     }
 }
