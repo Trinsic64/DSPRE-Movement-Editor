@@ -226,6 +226,12 @@ namespace DSPRE.Editors
             using (Graphics g = Graphics.FromImage(eventPictureBox.Image))
             {
                 Bitmap icon;
+                bool drawMovementPreview = movementEditorTabPage != null &&
+                    eventsTabControl.SelectedTab == movementEditorTabPage &&
+                    _previewPathTiles != null &&
+                    _previewPathTiles.Count > 0 &&
+                    _previewAnchorX.HasValue &&
+                    _previewAnchorY.HasValue;
 
                 /* Draw spawnables */
                 if (showSpawnablesCheckBox.Checked)
@@ -245,6 +251,12 @@ namespace DSPRE.Editors
                             }
                         }
                     }
+                }
+
+                // Draw destination square before overworld sprites so sprites appear above it.
+                if (drawMovementPreview)
+                {
+                    DrawMovementPreviewFrontSquare(g, drawNumber: false);
                 }
 
                 /* Draw overworlds */
@@ -317,8 +329,7 @@ namespace DSPRE.Editors
                 }
 
                 /* Movement Editor preview overlay */
-                if (movementEditorTabPage != null && eventsTabControl.SelectedTab == movementEditorTabPage && _previewPathTiles != null && _previewPathTiles.Count > 0 &&
-                    _previewAnchorX.HasValue && _previewAnchorY.HasValue)
+                if (drawMovementPreview)
                 {
                     DrawMovementPreviewOverlay(g);
                 }
@@ -331,7 +342,6 @@ namespace DSPRE.Editors
         {
             if (_previewPathTiles == null || _previewPathTiles.Count == 0) return;
             bool showPath = movementShowPathCheckBox?.Checked ?? true;
-            bool showGhost = movementShowGhostCheckBox?.Checked ?? true;
             bool showMarkers = movementShowMarkersCheckBox?.Checked ?? true;
             int ts = tileSize + 1;
             g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
@@ -363,29 +373,77 @@ namespace DSPRE.Editors
                 using (var brush = new SolidBrush(Color.White))
                 using (var outlineBrush = new SolidBrush(Color.Black))
                 {
+                    // Show anchor as step 0.
+                    if (_previewAnchorX.HasValue && _previewAnchorY.HasValue)
+                    {
+                        DrawMovementPreviewNumber(g, font, brush, outlineBrush, _previewAnchorX.Value, _previewAnchorY.Value, "0");
+                    }
+
+                    int lastCommandIndex = _previewCommandMarkers.Count > 0 ? _previewCommandMarkers[_previewCommandMarkers.Count - 1].commandIndex : 0;
                     foreach (var marker in _previewCommandMarkers)
                     {
-                        int cx = marker.x * ts + ts / 2;
-                        int cy = marker.y * ts + ts / 2;
-                        string num = marker.commandIndex.ToString();
-                        var size = g.MeasureString(num, font);
-                        float tx = cx - size.Width / 2f;
-                        float ty = cy - size.Height / 2f;
-                        for (int dx = -1; dx <= 1; dx++)
-                            for (int dy = -1; dy <= 1; dy++)
-                                if (dx != 0 || dy != 0)
-                                    g.DrawString(num, font, outlineBrush, tx + dx, ty + dy);
-                        g.DrawString(num, font, brush, tx, ty);
+                        // Front marker number is drawn separately so it stays visually in front of the destination square.
+                        if (marker.commandIndex == lastCommandIndex)
+                            continue;
+                        DrawMovementPreviewNumber(g, font, brush, outlineBrush, marker.x, marker.y, marker.commandIndex.ToString());
+                    }
+
+                    if (lastCommandIndex > 0)
+                    {
+                        var last = _previewPathTiles[_previewPathTiles.Count - 1];
+                        DrawMovementPreviewNumber(g, font, brush, outlineBrush, last.x, last.y, lastCommandIndex.ToString());
                     }
                 }
             }
-            if (showGhost && _previewPathTiles.Count > 0)
+        }
+
+        private void DrawMovementPreviewFrontSquare(Graphics g, bool drawNumber)
+        {
+            bool showGhost = movementShowGhostCheckBox?.Checked ?? true;
+            if (!showGhost || _previewPathTiles == null || _previewPathTiles.Count == 0)
+                return;
+
+            int ts = tileSize + 1;
+            var last = _previewPathTiles[_previewPathTiles.Count - 1];
+            int gx = last.x * ts;
+            int gy = last.y * ts;
+
+            // Yellow destination square with 75% opacity.
+            using (var fill = new SolidBrush(Color.FromArgb(192, Color.Yellow)))
+            using (var border = new Pen(Color.FromArgb(220, Color.DarkGoldenrod), 2f))
             {
-                var last = _previewPathTiles[_previewPathTiles.Count - 1];
-                int gx = last.x * ts;
-                int gy = last.y * ts;
-                g.FillRectangle(Brushes.White, gx + 2, gy + 2, ts - 4, ts - 4);
+                g.FillRectangle(fill, gx, gy - 1, ts, ts);
+                g.DrawRectangle(border, gx, gy - 1, ts, ts);
             }
+
+            if (drawNumber)
+            {
+                int lastCommandIndex = _previewCommandMarkers.Count > 0 ? _previewCommandMarkers[_previewCommandMarkers.Count - 1].commandIndex : 0;
+                if (lastCommandIndex > 0)
+                {
+                    using (var font = new Font("Segoe UI", 12f, FontStyle.Bold))
+                    using (var brush = new SolidBrush(Color.White))
+                    using (var outlineBrush = new SolidBrush(Color.Black))
+                    {
+                        DrawMovementPreviewNumber(g, font, brush, outlineBrush, last.x, last.y, lastCommandIndex.ToString());
+                    }
+                }
+            }
+        }
+
+        private void DrawMovementPreviewNumber(Graphics g, Font font, Brush brush, Brush outlineBrush, int tileX, int tileY, string number)
+        {
+            int ts = tileSize + 1;
+            int cx = tileX * ts + ts / 2;
+            int cy = tileY * ts + ts / 2;
+            var size = g.MeasureString(number, font);
+            float tx = cx - size.Width / 2f;
+            float ty = cy - size.Height / 2f;
+            for (int dx = -1; dx <= 1; dx++)
+                for (int dy = -1; dy <= 1; dy++)
+                    if (dx != 0 || dy != 0)
+                        g.DrawString(number, font, outlineBrush, tx + dx, ty + dy);
+            g.DrawString(number, font, brush, tx, ty);
         }
         private void DrawWarpCollisions(Graphics g)
         {

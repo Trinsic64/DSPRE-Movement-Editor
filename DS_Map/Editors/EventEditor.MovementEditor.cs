@@ -577,7 +577,6 @@ namespace DSPRE.Editors
             if (movementInsertButton != null) movementInsertButton.Click += MovementInsertButton_Click;
             if (movementDeleteButton != null) movementDeleteButton.Click += MovementDeleteButton_Click;
             if (movementClearButton != null) movementClearButton.Click += MovementClearButton_Click;
-            else if (DeleteListSelectedButton != null) DeleteListSelectedButton.Click += MovementClearButton_Click;
             if (movementUndoButton != null) movementUndoButton.Click += MovementUndoButton_Click;
             else if (UndoListChangesButton != null) UndoListChangesButton.Click += MovementUndoButton_Click;
             if (movementRedoButton != null) movementRedoButton.Click += MovementRedoButton_Click;
@@ -1806,11 +1805,19 @@ namespace DSPRE.Editors
                 if (container.commands[idx].id == MovementEndCommandId) continue;
                 toRemove.Add(idx);
             }
-            if (toRemove.Count == 0) return;
+            if (toRemove.Count == 0)
+            {
+                int lastIdx = container.commands.Count - 1;
+                if (lastIdx >= 0 && container.commands[lastIdx].id == MovementEndCommandId)
+                    lastIdx--;
+                if (lastIdx < 0) return;
+                toRemove.Add(lastIdx);
+            }
             toRemove.Sort((a, b) => b.CompareTo(a));
             PushMovementUndo();
             foreach (int idx in toRemove)
                 container.commands.RemoveAt(idx);
+            EnsureEndExists(container);
             MarkMovementPendingEdits();
             RefreshMovementCommandList();
         }
