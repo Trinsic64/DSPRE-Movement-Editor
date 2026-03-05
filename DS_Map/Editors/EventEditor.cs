@@ -247,6 +247,23 @@ namespace DSPRE.Editors
                     }
                 }
 
+                bool drawMovementPreview = movementEditorTabPage != null &&
+                    eventsTabControl.SelectedTab == movementEditorTabPage &&
+                    _previewPathTiles != null &&
+                    _previewPathTiles.Count > 0 &&
+                    _previewAnchorX.HasValue &&
+                    _previewAnchorY.HasValue;
+                if (drawMovementPreview && movementShowGhostCheckBox?.Checked == true)
+                {
+                    int mapSize = MapFile.mapSize;
+                    int curMx = (int)eventMatrixXUpDown.Value;
+                    int curMy = (int)eventMatrixYUpDown.Value;
+                    var last = _previewPathTiles[_previewPathTiles.Count - 1];
+                    GlobalToCellAndLocal(last.gx, last.gy, mapSize, out int lcx, out int lcy, out int lx, out int ly);
+                    if (lcx == curMx && lcy == curMy)
+                        DrawMovementPreviewDestinationSquare(g, lx, ly, tileSize + 1);
+                }
+
                 /* Draw overworlds */
                 if (showOwsCheckBox.Checked)
                 {
@@ -464,11 +481,20 @@ namespace DSPRE.Editors
                 var last = _previewPathTiles[_previewPathTiles.Count - 1];
                 GlobalToCellAndLocal(last.gx, last.gy, mapSize, out int lcx, out int lcy, out int lx, out int ly);
                 if (lcx == curMx && lcy == curMy)
-                {
-                    int gx = lx * ts;
-                    int gy = ly * ts;
-                    g.FillRectangle(Brushes.White, gx + 2, gy + 2, ts - 4, ts - 4);
-                }
+                    DrawMovementPreviewDestinationSquare(g, lx, ly, ts);
+            }
+        }
+
+        private static void DrawMovementPreviewDestinationSquare(Graphics g, int localX, int localY, int ts)
+        {
+            int px = localX * ts + 2;
+            int py = localY * ts + 2;
+            int size = ts - 4;
+            using (var fill = new SolidBrush(Color.FromArgb(192, Color.Yellow)))
+            using (var border = new Pen(Color.FromArgb(220, Color.Goldenrod), 1f))
+            {
+                g.FillRectangle(fill, px, py, size, size);
+                g.DrawRectangle(border, px, py, size - 1, size - 1);
             }
         }
 
@@ -840,7 +866,10 @@ namespace DSPRE.Editors
 
             if (eventFileID >= 0 && eventFileID < selectEventComboBox.Items.Count)
             {
-                selectEventComboBox.SelectedIndex = eventFileID;
+                if (selectEventComboBox.SelectedIndex != eventFileID)
+                    selectEventComboBox.SelectedIndex = eventFileID;
+                ChangeLoadedEventFile(eventFileID, preferredHeaderId ?? 0);
+                PrimeMovementEditorContext();
             }
 
             if (EditorPanels.PopoutRegistry.TryGetHost(this, out var host))

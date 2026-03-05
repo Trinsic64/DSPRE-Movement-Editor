@@ -579,7 +579,6 @@ namespace DSPRE.Editors
             if (movementInsertButton != null) movementInsertButton.Click += MovementInsertButton_Click;
             if (movementDeleteButton != null) movementDeleteButton.Click += MovementDeleteButton_Click;
             if (movementClearButton != null) movementClearButton.Click += MovementClearButton_Click;
-            else if (DeleteListSelectedButton != null) DeleteListSelectedButton.Click += MovementClearButton_Click;
             if (movementUndoButton != null) movementUndoButton.Click += MovementUndoButton_Click;
             else if (UndoListChangesButton != null) UndoListChangesButton.Click += MovementUndoButton_Click;
             if (movementRedoButton != null) movementRedoButton.Click += MovementRedoButton_Click;
@@ -723,22 +722,8 @@ namespace DSPRE.Editors
             if (_parent == null || selectEventComboBox == null || selectEventComboBox.SelectedIndex < 0)
                 return (current, related);
 
-            ushort currentHeaderId;
-            if (_preferredMovementHeaderId.HasValue)
-            {
-                currentHeaderId = _preferredMovementHeaderId.Value;
-                MapHeader preferred = LoadHeaderById(currentHeaderId);
-                if (preferred == null || preferred.eventFileID != selectEventComboBox.SelectedIndex)
-                {
-                    _preferredMovementHeaderId = null;
-                    if (!_parent.eventToHeader.TryGetValue((ushort)selectEventComboBox.SelectedIndex, out currentHeaderId))
-                        return (current, related);
-                }
-            }
-            else if (!_parent.eventToHeader.TryGetValue((ushort)selectEventComboBox.SelectedIndex, out currentHeaderId))
-            {
+            if (!TryResolveMovementHeaderForCurrentEvent(out ushort currentHeaderId))
                 return (current, related);
-            }
 
             MapHeader currentHeader = LoadHeaderById(currentHeaderId);
             if (currentHeader != null)
@@ -771,6 +756,42 @@ namespace DSPRE.Editors
             {
                 return null;
             }
+        }
+
+        private bool TryResolveMovementHeaderForCurrentEvent(out ushort headerId)
+        {
+            headerId = 0;
+            if (_parent == null || selectEventComboBox == null || selectEventComboBox.SelectedIndex < 0)
+                return false;
+
+            int eventFileId = selectEventComboBox.SelectedIndex;
+
+            if (_preferredMovementHeaderId.HasValue)
+            {
+                ushort preferredId = _preferredMovementHeaderId.Value;
+                MapHeader preferred = LoadHeaderById(preferredId);
+                if (preferred != null && preferred.eventFileID == eventFileId)
+                {
+                    headerId = preferredId;
+                    return true;
+                }
+                _preferredMovementHeaderId = null;
+            }
+
+            if (EditorPanels.headerEditor?.internalNames != null)
+            {
+                for (ushort i = 0; i < EditorPanels.headerEditor.internalNames.Count; i++)
+                {
+                    MapHeader header = LoadHeaderById(i);
+                    if (header != null && header.eventFileID == eventFileId)
+                    {
+                        headerId = i;
+                        return true;
+                    }
+                }
+            }
+
+            return _parent.eventToHeader.TryGetValue((ushort)eventFileId, out headerId);
         }
 
         private void PopulateMovementOverworldIdComboBox()
@@ -1781,7 +1802,14 @@ namespace DSPRE.Editors
                 if (container.commands[idx].id == MovementEndCommandId) continue;
                 toRemove.Add(idx);
             }
-            if (toRemove.Count == 0) return;
+            if (toRemove.Count == 0)
+            {
+                int lastNonEnd = -1;
+                for (int i = 0; i < container.commands.Count; i++)
+                    if (container.commands[i].id != MovementEndCommandId) lastNonEnd = i;
+                if (lastNonEnd < 0) return;
+                toRemove.Add(lastNonEnd);
+            }
             toRemove.Sort((a, b) => b.CompareTo(a));
             PushMovementUndo();
             foreach (int idx in toRemove)
@@ -1927,19 +1955,7 @@ namespace DSPRE.Editors
         private void SetMovementScriptFileFromCurrentEventHeader()
         {
             if (_parent == null || currentEvFile == null || selectEventComboBox == null) return;
-            ushort headerID;
-            if (_preferredMovementHeaderId.HasValue)
-            {
-                headerID = _preferredMovementHeaderId.Value;
-                MapHeader preferred = LoadHeaderById(headerID);
-                if (preferred == null || preferred.eventFileID != selectEventComboBox.SelectedIndex)
-                {
-                    _preferredMovementHeaderId = null;
-                    if (!_parent.eventToHeader.TryGetValue((ushort)selectEventComboBox.SelectedIndex, out headerID))
-                        return;
-                }
-            }
-            else if (!_parent.eventToHeader.TryGetValue((ushort)selectEventComboBox.SelectedIndex, out headerID))
+            if (!TryResolveMovementHeaderForCurrentEvent(out ushort headerID))
                 return;
             MapHeader header;
             try
