@@ -2431,7 +2431,7 @@ namespace DSPRE.Editors
             // movementCommandListView
             // 
             this.movementCommandListView.Anchor = System.Windows.Forms.AnchorStyles.None;
-            this.movementCommandListView.CheckBoxes = true;
+            this.movementCommandListView.CheckBoxes = false;
             this.movementCommandListView.FullRowSelect = true;
             this.movementCommandListView.GridLines = true;
             this.movementCommandListView.HideSelection = false;

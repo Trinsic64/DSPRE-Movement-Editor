@@ -4,6 +4,8 @@ using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Reflection;
+using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using DSPRE.ROMFiles;
 using DSPRE.Resources;
@@ -115,10 +117,10 @@ namespace DSPRE.Editors
         // [Movement Command] Row height for Type, Style, On Spot
         private const int MovementEditorModeRowHeight = 18;
 
-        // [Command ListView] Column widths: "Use" checkbox col, "Rep" col (-2 = Command col auto-fills)
-        private const int MovementEditorListViewUseColWidth = 20;
+        // [Command ListView] Column widths: Command | Rep | Time
         private const int MovementEditorListViewCommandColWidth = 118;
         private const int MovementEditorListViewRepColWidth = 44;
+        private const int MovementEditorListViewTimeColWidth = 52;
 
         // [Header] Left column width for labels (OW, etc.)
         private const int MovementEditorHeaderLabelColWidth = 90;
@@ -137,8 +139,8 @@ namespace DSPRE.Editors
         // MovementEditorButtonHeight → Each of those 8 buttons
         // MovementEditorDirectionPadRowHeight → Direction pad (↑↓←→) area
         // MovementEditorModeRowHeight → Type/Style/On Spot rows
-        // MovementEditorListViewUseColWidth → "Use" column
         // MovementEditorListViewRepColWidth → "Rep" column
+        // MovementEditorListViewTimeColWidth → "Time" column (approx. seconds)
         // MovementEditorHeaderLabelColWidth → Placeholder/Overworld label column
         // MovementEditorModeLabelColWidth → Type/Style/<#> label column
 
@@ -258,19 +260,19 @@ namespace DSPRE.Editors
 
             // [Command List Panel] Wrapper for the command ListView
             var commandTablePanel = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 1, 0, 1), MinimumSize = new Size(64, 24) };
-            // [Command ListView] Use | Command | Rep columns
+            // [Command ListView] Command | Rep | Time columns
             movementCommandListView = new ListView
             {
                 Dock = DockStyle.Fill,
                 View = View.Details,
                 FullRowSelect = true,
                 GridLines = true,
-                CheckBoxes = true,
+                CheckBoxes = false,
                 MinimumSize = new Size(64, 24)
             };
-            movementCommandListView.Columns.Add("", MovementEditorListViewUseColWidth);
             movementCommandListView.Columns.Add("Command", MovementEditorListViewCommandColWidth);
             movementCommandListView.Columns.Add("Rep", MovementEditorListViewRepColWidth);
+            movementCommandListView.Columns.Add("Time", MovementEditorListViewTimeColWidth);
             commandTablePanel.Controls.Add(movementCommandListView);
             leftStack.Controls.Add(commandTablePanel, 0, 1);
 
@@ -439,11 +441,15 @@ namespace DSPRE.Editors
 
             EnsureMovementEditorControlAliases();
 
-            if (movementCommandListView != null && movementCommandListView.Columns.Count == 0)
+            if (movementCommandListView != null)
             {
-                movementCommandListView.Columns.Add("", MovementEditorListViewUseColWidth);
-                movementCommandListView.Columns.Add("Command", MovementEditorListViewCommandColWidth);
-                movementCommandListView.Columns.Add("Rep", MovementEditorListViewRepColWidth);
+                if (movementCommandListView.Columns.Count == 0)
+                {
+                    movementCommandListView.CheckBoxes = false;
+                    movementCommandListView.Columns.Add("Command", MovementEditorListViewCommandColWidth);
+                    movementCommandListView.Columns.Add("Rep", MovementEditorListViewRepColWidth);
+                    movementCommandListView.Columns.Add("Time", MovementEditorListViewTimeColWidth);
+                }
             }
 
             if (movementSplitContainer != null)
@@ -588,7 +594,6 @@ namespace DSPRE.Editors
             if (movementCopyButton != null) movementCopyButton.Click += MovementCopyButton_Click;
             else if (CopyListButton != null) CopyListButton.Click += MovementCopyButton_Click;
             if (movementPasteButton != null) movementPasteButton.Click += MovementPasteButton_Click;
-            else if (PasteListButton != null) PasteListButton.Click += MovementPasteButton_Click;
             if (movementDeleteSelectedButton != null) movementDeleteSelectedButton.Click += MovementDeleteSelectedButton_Click;
             if (movementShowPathCheckBox != null) movementShowPathCheckBox.CheckedChanged += MovementPreviewCheckBox_CheckedChanged;
             if (movementShowGhostCheckBox != null) movementShowGhostCheckBox.CheckedChanged += MovementPreviewCheckBox_CheckedChanged;
@@ -1095,6 +1100,100 @@ namespace DSPRE.Editors
                 : input;
         }
 
+        private static Dictionary<string, double> _movementCommandSecondsPerRep;
+        private static void EnsureMovementCommandTimeLookup()
+        {
+            if (_movementCommandSecondsPerRep != null) return;
+            _movementCommandSecondsPerRep = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            string[] paths = {
+                Path.Combine(Application.StartupPath, "MovementCommands.csv"),
+                Path.Combine(Application.StartupPath, "Resources", "MovementCommands.csv"),
+                Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly()?.Location) ?? "", "MovementCommands.csv"),
+                Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly()?.Location) ?? "", "Resources", "MovementCommands.csv")
+            };
+            foreach (string path in paths)
+            {
+                if (!File.Exists(path)) continue;
+                try
+                {
+                    foreach (string line in File.ReadAllLines(path))
+                    {
+                        if (string.IsNullOrWhiteSpace(line)) continue;
+                        string[] parts = line.Split('\t');
+                        if (parts.Length < 1) continue;
+                        string name = parts[0].Trim();
+                        if (string.IsNullOrEmpty(name) || name.Equals("DSPRE Commands", StringComparison.OrdinalIgnoreCase)) continue;
+                        string notes = parts.Length >= 3 ? (parts[2] ?? "") : "";
+                        double sec = 0;
+                        var fracMatch = Regex.Match(notes, @"(\d+)/30");
+                        if (fracMatch.Success && int.TryParse(fracMatch.Groups[1].Value, out int frames))
+                            sec = frames / 30.0;
+                        else
+                        {
+                            var frameMatch = Regex.Match(notes, @"(\d+)\s*frames\s+in\s+total");
+                            if (frameMatch.Success && int.TryParse(frameMatch.Groups[1].Value, out int totalFrames))
+                                sec = totalFrames / 30.0;
+                            else
+                            {
+                                var secMatch = Regex.Match(notes, @"~?([\d.]+)\s*seconds");
+                                if (secMatch.Success && double.TryParse(secMatch.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out double s))
+                                    sec = s;
+                                else
+                                {
+                                    var framePerMatch = Regex.Match(notes, @"(\d+)\s*frames");
+                                    if (framePerMatch.Success && int.TryParse(framePerMatch.Groups[1].Value, out int fr))
+                                        sec = fr / 30.0;
+                                }
+                            }
+                        }
+                        string key = name.Replace(" ", "");
+                        if (!_movementCommandSecondsPerRep.ContainsKey(key))
+                            _movementCommandSecondsPerRep[key] = sec;
+                    }
+                    break;
+                }
+                catch { }
+            }
+            if (_movementCommandSecondsPerRep.Count == 0)
+            {
+                foreach (string d in DirectionOptions)
+                {
+                    _movementCommandSecondsPerRep["Face" + d] = 0;
+                    _movementCommandSecondsPerRep["Walk" + d + "1"] = 1 / 30.0; _movementCommandSecondsPerRep["Walk" + d + "2"] = 2 / 30.0;
+                    _movementCommandSecondsPerRep["Walk" + d + "3"] = 3 / 30.0; _movementCommandSecondsPerRep["Walk" + d + "4"] = 4 / 30.0;
+                    _movementCommandSecondsPerRep["Walk" + d + "6"] = 6 / 30.0; _movementCommandSecondsPerRep["Walk" + d + "7"] = 7 / 30.0;
+                    _movementCommandSecondsPerRep["Walk" + d + "8"] = 8 / 30.0; _movementCommandSecondsPerRep["Walk" + d + "16"] = 16 / 30.0;
+                    _movementCommandSecondsPerRep["Walk" + d + "32"] = 32 / 30.0;
+                    _movementCommandSecondsPerRep["Jump" + d + "8"] = 8 / 30.0; _movementCommandSecondsPerRep["Jump" + d + "16"] = 16 / 30.0;
+                    _movementCommandSecondsPerRep["JumpFar" + d] = 16 / 30.0; _movementCommandSecondsPerRep["JumpVeryFar" + d] = 12 / 30.0;
+                }
+                for (int n = 1; n <= 32; n++) _movementCommandSecondsPerRep["Delay" + n] = n / 30.0;
+                _movementCommandSecondsPerRep["End"] = 0;
+            }
+        }
+
+        private static double GetApproximateSecondsPerRep(string commandName)
+        {
+            EnsureMovementCommandTimeLookup();
+            string key = (commandName ?? "").Replace(" ", "");
+            if (_movementCommandSecondsPerRep.TryGetValue(key, out double s)) return s;
+            if (Regex.Match(key, @"^Delay(\d+)$").Success && int.TryParse(Regex.Match(key, @"\d+").Value, out int d))
+                return d / 30.0;
+            if (Regex.Match(key, @"^Walk(?:OnSpot)?(?:North|South|East|West)(\d+)$", RegexOptions.IgnoreCase).Success)
+            {
+                var m = Regex.Match(key, @"(\d+)$");
+                if (m.Success && int.TryParse(m.Value, out int n)) return n / 30.0;
+            }
+            if (Regex.Match(key, @"^Jump(?:OnSpot)?(?:North|South|East|West)(\d+)$", RegexOptions.IgnoreCase).Success)
+            {
+                var m = Regex.Match(key, @"(\d+)$");
+                if (m.Success && int.TryParse(m.Value, out int n)) return n / 30.0;
+            }
+            if (key.StartsWith("JumpFar", StringComparison.OrdinalIgnoreCase)) return 16 / 30.0;
+            if (key.StartsWith("JumpVeryFar", StringComparison.OrdinalIgnoreCase)) return 12 / 30.0;
+            return 0;
+        }
+
         private string GetDisplayCommandName(ScriptAction command)
         {
             if (command == null)
@@ -1142,12 +1241,19 @@ namespace DSPRE.Editors
             movementCommandListView.Items.Clear();
             var container = GetCurrentActionContainer();
             if (container == null) return;
+            double cumulativeSeconds = 0;
             for (int i = 0; i < container.commands.Count; i++)
             {
                 var cmd = container.commands[i];
                 bool isEnd = cmd.id == MovementEndCommandId;
                 string rep = isEnd ? "" : (cmd.repetitionCount?.ToString() ?? "1");
-                var item = new ListViewItem(new[] { "", GetDisplayCommandName(cmd), rep });
+                string displayName = GetDisplayCommandName(cmd);
+                int reps = isEnd ? 0 : (int)(cmd.repetitionCount ?? 1);
+                double secPerRep = GetApproximateSecondsPerRep(displayName);
+                double rowSeconds = secPerRep * reps;
+                cumulativeSeconds += rowSeconds;
+                string timeStr = isEnd ? "" : (cumulativeSeconds < 0.01 ? "~0" : "~" + cumulativeSeconds.ToString("0.##", CultureInfo.InvariantCulture) + "s");
+                var item = new ListViewItem(new[] { displayName, rep, timeStr });
                 item.Tag = i;
                 if (selectedRows.Contains(i))
                     item.Selected = true;
