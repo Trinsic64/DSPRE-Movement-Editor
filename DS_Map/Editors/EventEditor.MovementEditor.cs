@@ -927,6 +927,110 @@ namespace DSPRE.Editors
             public override string ToString() => Name;
         }
 
+        private static readonly string[] DirectionOptions = { "North", "East", "South", "West" };
+
+        private static int ParseLeadingSpeedValue(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return 0;
+            int i = 0;
+            while (i < s.Length && char.IsDigit(s[i])) i++;
+            if (i == 0) return 0;
+            return int.TryParse(s.Substring(0, i), out int val) ? val : 0;
+        }
+
+        private bool TryParseMovementCommandToComponents(ushort commandId, string rawName, out string type, out string styleLabel, out string direction, out bool onSpot)
+        {
+            type = "Walk";
+            styleLabel = "Normal";
+            direction = "South";
+            onSpot = false;
+            string n = (rawName ?? "").Replace(" ", "");
+            if (n.Length == 0 && _movementCommandNameById.TryGetValue(commandId, out string fromId))
+                n = fromId.Replace(" ", "");
+            if (n.Length == 0) return false;
+
+            if (n.StartsWith("Face", StringComparison.OrdinalIgnoreCase))
+            {
+                type = "Face";
+                string rest = n.Substring(4);
+                foreach (string d in DirectionOptions)
+                    if (rest.StartsWith(d, StringComparison.OrdinalIgnoreCase)) { direction = d; return true; }
+                return true;
+            }
+            if (n.StartsWith("Delay", StringComparison.OrdinalIgnoreCase))
+            {
+                type = "Delay";
+                string numPart = n.Substring(5);
+                int speedVal = ParseLeadingSpeedValue(numPart);
+                if (speedVal > 0)
+                {
+                    var match = MovementStyleOptions.FirstOrDefault(x => x.SpeedValue == speedVal);
+                    styleLabel = match.Label ?? "Normal";
+                }
+                return true;
+            }
+
+            bool isOnSpot = n.IndexOf("OnSpot", StringComparison.OrdinalIgnoreCase) >= 0;
+            onSpot = isOnSpot;
+            string baseN = n.Replace("OnSpot", "").Replace("onspot", "");
+
+            if (baseN.StartsWith("JumpVeryFar", StringComparison.OrdinalIgnoreCase))
+            {
+                type = "JumpVeryFar";
+                string rest = baseN.Substring(11);
+                foreach (string d in DirectionOptions)
+                    if (rest.StartsWith(d, StringComparison.OrdinalIgnoreCase)) { direction = d; return true; }
+                return true;
+            }
+            if (baseN.StartsWith("JumpFar", StringComparison.OrdinalIgnoreCase))
+            {
+                type = "JumpFar";
+                string rest = baseN.Substring(7);
+                foreach (string d in DirectionOptions)
+                    if (rest.StartsWith(d, StringComparison.OrdinalIgnoreCase)) { direction = d; return true; }
+                return true;
+            }
+            if (baseN.StartsWith("Jump", StringComparison.OrdinalIgnoreCase))
+            {
+                type = "Jump";
+                string rest = baseN.Substring(4);
+                foreach (string d in DirectionOptions)
+                {
+                    if (!rest.StartsWith(d, StringComparison.OrdinalIgnoreCase)) continue;
+                    direction = d;
+                    string after = rest.Substring(d.Length);
+                    int speedVal = ParseLeadingSpeedValue(after);
+                    if (speedVal > 0)
+                    {
+                        var match = MovementStyleOptions.FirstOrDefault(x => x.SpeedValue == speedVal);
+                        styleLabel = match.Label ?? "Normal";
+                    }
+                    return true;
+                }
+                return true;
+            }
+            if (baseN.StartsWith("Walk", StringComparison.OrdinalIgnoreCase))
+            {
+                type = "Walk";
+                string rest = baseN.Substring(4);
+                foreach (string d in DirectionOptions)
+                {
+                    if (!rest.StartsWith(d, StringComparison.OrdinalIgnoreCase)) continue;
+                    direction = d;
+                    string after = rest.Substring(d.Length);
+                    int speedVal = ParseLeadingSpeedValue(after);
+                    if (speedVal > 0)
+                    {
+                        var match = MovementStyleOptions.FirstOrDefault(x => x.SpeedValue == speedVal);
+                        styleLabel = match.Label ?? "Normal";
+                    }
+                    return true;
+                }
+                return true;
+            }
+            return false;
+        }
+
         private sealed class MovementScriptFileEntry
         {
             public int ScriptFileId { get; }
@@ -1172,32 +1276,110 @@ namespace DSPRE.Editors
             }
         }
 
+        private string GetExportLineBaseName(ScriptAction c)
+        {
+            string baseName = RemoveTrailingHexToken(c.name ?? "");
+            if (string.IsNullOrWhiteSpace(baseName) && c.id.HasValue && _movementCommandNameById.TryGetValue(c.id.Value, out string canonical))
+                baseName = canonical;
+            return string.IsNullOrWhiteSpace(baseName) ? (c.name ?? "") : baseName;
+        }
+
         private void MovementExportButton_Click(object sender, EventArgs e)
         {
             var container = GetCurrentActionContainer();
             if (container == null) return;
             var lines = container.commands.Select(c =>
             {
+                string baseName = GetExportLineBaseName(c);
                 string rep = c.id == MovementEndCommandId ? "" : " 0x" + (c.repetitionCount ?? 1).ToString("X");
-                return (c.name ?? "") + rep;
+                return baseName + rep;
             }).ToArray();
             string actionText = "Action " + (_selectedActionIndex + 1) + ":" + Environment.NewLine +
                                string.Join(Environment.NewLine, lines.Select(x => " " + x));
-            if (!PersistSelectedActionToScriptFile(suppressUnusedWarnings: false))
-                return;
-            ClearMovementPendingEdits();
-            try
+
+            using (var dlg = new Form
             {
-                Clipboard.SetText(actionText);
-            }
-            catch { }
-            using (var dlg = new Form { Text = "Export Action", Size = new Size(400, 300), StartPosition = FormStartPosition.CenterParent })
+                Text = "Export Action",
+                Size = new Size(520, 380),
+                StartPosition = FormStartPosition.CenterParent,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MinimizeBox = false,
+                MaximizeBox = false,
+                Padding = new Padding(12)
+            })
             {
-                var txt = new TextBox { Multiline = true, ReadOnly = true, Dock = DockStyle.Fill, Font = new Font("Consolas", 9f), Text = actionText };
-                var copyBtn = new Button { Text = "Copy", Dock = DockStyle.Bottom };
-                copyBtn.Click += (s, ev) => { try { Clipboard.SetText(actionText); } catch { } };
-                dlg.Controls.Add(txt);
-                dlg.Controls.Add(copyBtn);
+                var mainLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4, Padding = Padding.Empty };
+                mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
+                mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
+                mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+                mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+
+                var titleLabel = new Label
+                {
+                    Text = "Action " + (_selectedActionIndex + 1) + " — Script File " + (_movementEditorScriptFile?.fileID ?? 0),
+                    Font = new Font(dlg.Font.FontFamily, 10f, FontStyle.Bold),
+                    AutoSize = true,
+                    Dock = DockStyle.Fill,
+                    Padding = Padding.Empty
+                };
+                var subtitleLabel = new Label
+                {
+                    Text = "Commands (name + repetition hex). Copy or apply to script file below.",
+                    ForeColor = Color.Gray,
+                    AutoSize = true,
+                    Dock = DockStyle.Fill,
+                    Padding = Padding.Empty
+                };
+
+                var txt = new TextBox
+                {
+                    Multiline = true,
+                    ReadOnly = true,
+                    Dock = DockStyle.Fill,
+                    Font = new Font("Consolas", 9.5f),
+                    Text = actionText,
+                    BorderStyle = BorderStyle.FixedSingle,
+                    ScrollBars = ScrollBars.Both,
+                    WordWrap = false,
+                    Margin = new Padding(0, 4, 0, 0)
+                };
+
+                var buttonPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft, Padding = Padding.Empty };
+                var closeBtn = new Button { Text = "Close", Width = 90, Height = 28, DialogResult = DialogResult.Cancel };
+                dlg.CancelButton = closeBtn;
+
+                var applyBtn = new Button { Text = "Apply to Script File", Width = 130, Height = 28 };
+                applyBtn.Click += (s, ev) =>
+                {
+                    if (!PersistSelectedActionToScriptFile(suppressUnusedWarnings: false))
+                        return;
+                    MessageBox.Show("Action " + (_selectedActionIndex + 1) + " has been written to the script file.", "Applied", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                };
+
+                var copyBtn = new Button { Text = "Copy to Clipboard", Width = 120, Height = 28 };
+                copyBtn.Click += (s, ev) =>
+                {
+                    try
+                    {
+                        Clipboard.SetText(actionText);
+                        MessageBox.Show("Copied to clipboard.", "Copy", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("Copy failed: " + ex.Message, "Copy", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                };
+
+                buttonPanel.Controls.Add(closeBtn);
+                buttonPanel.Controls.Add(applyBtn);
+                buttonPanel.Controls.Add(copyBtn);
+
+                mainLayout.Controls.Add(titleLabel, 0, 0);
+                mainLayout.Controls.Add(subtitleLabel, 0, 1);
+                mainLayout.Controls.Add(txt, 0, 2);
+                mainLayout.Controls.Add(buttonPanel, 0, 3);
+
+                dlg.Controls.Add(mainLayout);
                 dlg.ShowDialog(FindForm());
             }
         }
@@ -1646,38 +1828,66 @@ namespace DSPRE.Editors
 
         private void ShowEditMovementCommandDialog(ScriptActionContainer container, int index, ScriptAction cmd)
         {
-            var commands = GetAllMovementCommandsForQuickInsert();
-            using (var dlg = new Form { Text = "Edit step", Size = new Size(320, 140), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog })
+            string rawName = cmd.name ?? (_movementCommandNameById.TryGetValue(cmd.id ?? 0, out string n) ? n : "");
+            string nameForParse = _movementCommandNameById.TryGetValue(cmd.id ?? 0, out string canonical) ? canonical : RemoveTrailingHexToken(rawName);
+            if (string.IsNullOrWhiteSpace(nameForParse)) nameForParse = rawName;
+            TryParseMovementCommandToComponents(cmd.id ?? 0, nameForParse, out string type, out string styleLabel, out string direction, out bool onSpot);
+
+            using (var dlg = new Form { Text = "Edit step", Size = new Size(340, 228), StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog })
             {
-                var repLabel = new Label { Text = "Repetition:", Location = new Point(12, 14), AutoSize = true };
-                var repNud = new NumericUpDown { Minimum = 1, Maximum = 65535, Value = Math.Max(1, (int)(cmd.repetitionCount ?? 1)), Location = new Point(100, 12), Width = 80 };
-                var cmdLabel = new Label { Text = "Command:", Location = new Point(12, 44), AutoSize = true };
-                var cmdCombo = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Location = new Point(100, 42), Width = 190 };
-                foreach (var kvp in commands)
-                    cmdCombo.Items.Add(new MovementCommandItem(kvp.Key, kvp.Value));
-                ushort? currentId = cmd.id;
-                for (int i = 0; i < cmdCombo.Items.Count; i++)
-                {
-                    if (cmdCombo.Items[i] is MovementCommandItem mi && mi.Id == currentId)
-                    { cmdCombo.SelectedIndex = i; break; }
-                }
-                if (cmdCombo.SelectedIndex < 0 && cmdCombo.Items.Count > 0) cmdCombo.SelectedIndex = 0;
-                var okBtn = new Button { Text = "OK", DialogResult = DialogResult.OK, Location = new Point(120, 78), Width = 75 };
-                var cancelBtn = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, Location = new Point(205, 78), Width = 75 };
+                var typeLabel = new Label { Text = "Movement Type:", Location = new Point(12, 14), AutoSize = true };
+                var typeCombo = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Location = new Point(130, 12), Width = 180 };
+                foreach (var t in MovementTypeOptions) typeCombo.Items.Add(t);
+                int typeIdx = Array.FindIndex(MovementTypeOptions, x => string.Equals(x, type, StringComparison.OrdinalIgnoreCase));
+                typeCombo.SelectedIndex = typeIdx >= 0 ? typeIdx : 2;
+
+                var speedLabel = new Label { Text = "Movement Speed:", Location = new Point(12, 42), AutoSize = true };
+                var styleCombo = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Location = new Point(130, 40), Width = 180 };
+                foreach (var s in MovementStyleOptions.Select(x => x.Label)) styleCombo.Items.Add(s);
+                int styleIdx = MovementStyleOptions.ToList().FindIndex(x => string.Equals(x.Label, styleLabel, StringComparison.OrdinalIgnoreCase));
+                styleCombo.SelectedIndex = styleIdx >= 0 ? styleIdx : 2;
+
+                var dirLabel = new Label { Text = "Direction:", Location = new Point(12, 70), AutoSize = true };
+                var dirCombo = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Location = new Point(130, 68), Width = 180 };
+                foreach (var d in DirectionOptions) dirCombo.Items.Add(d);
+                int dirIdx = Array.FindIndex(DirectionOptions, x => string.Equals(x, direction, StringComparison.OrdinalIgnoreCase));
+                dirCombo.SelectedIndex = dirIdx >= 0 ? dirIdx : 0;
+
+                var onSpotCheck = new CheckBox { Text = "On Spot", Location = new Point(130, 96), AutoSize = true, Checked = onSpot };
+
+                var repLabel = new Label { Text = "Repetition:", Location = new Point(12, 122), AutoSize = true };
+                var repNud = new NumericUpDown { Minimum = 1, Maximum = 65535, Value = Math.Max(1, (int)(cmd.repetitionCount ?? 1)), Location = new Point(130, 120), Width = 100 };
+
+                var okBtn = new Button { Text = "OK", DialogResult = DialogResult.OK, Location = new Point(130, 158), Width = 75 };
+                var cancelBtn = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, Location = new Point(215, 158), Width = 75 };
+
+                dlg.Controls.Add(typeLabel);
+                dlg.Controls.Add(typeCombo);
+                dlg.Controls.Add(speedLabel);
+                dlg.Controls.Add(styleCombo);
+                dlg.Controls.Add(dirLabel);
+                dlg.Controls.Add(dirCombo);
+                dlg.Controls.Add(onSpotCheck);
                 dlg.Controls.Add(repLabel);
                 dlg.Controls.Add(repNud);
-                dlg.Controls.Add(cmdLabel);
-                dlg.Controls.Add(cmdCombo);
                 dlg.Controls.Add(okBtn);
                 dlg.Controls.Add(cancelBtn);
                 dlg.AcceptButton = okBtn;
                 dlg.CancelButton = cancelBtn;
-                if (dlg.ShowDialog(FindForm()) == DialogResult.OK && cmdCombo.SelectedItem is MovementCommandItem selected)
+
+                if (dlg.ShowDialog(FindForm()) == DialogResult.OK)
                 {
-                    PushMovementUndo();
-                    container.commands[index] = new ScriptAction(selected.Id, (ushort)repNud.Value);
-                    MarkMovementPendingEdits();
-                    RefreshMovementCommandList();
+                    string selType = typeCombo.SelectedItem?.ToString() ?? "Walk";
+                    string selStyle = styleCombo.SelectedItem?.ToString() ?? "Normal";
+                    string selDir = dirCombo.SelectedItem?.ToString() ?? "South";
+                    ushort? cmdId = ResolveMovementCommandId(selType, selStyle, selDir, onSpotCheck.Checked);
+                    if (cmdId.HasValue)
+                    {
+                        PushMovementUndo();
+                        container.commands[index] = new ScriptAction(cmdId.Value, (ushort)repNud.Value);
+                        MarkMovementPendingEdits();
+                        RefreshMovementCommandList();
+                    }
                 }
             }
         }
@@ -2118,24 +2328,40 @@ namespace DSPRE.Editors
 
         private void ComputeMovementPreviewPath()
         {
+            var anchor = GetMovementPreviewAnchor();
+            var container = GetCurrentActionContainer();
+            if (container == null)
+                return;
+            int mapSize = MapFile.mapSize;
+            int matrixX;
+            int matrixY;
+            int ax;
+            int ay;
+            if (anchor != null)
+            {
+                matrixX = (int)eventMatrixXUpDown.Value;
+                matrixY = (int)eventMatrixYUpDown.Value;
+                ax = anchor.Value.x;
+                ay = anchor.Value.y;
+            }
+            else if (_previewAnchorX.HasValue && _previewAnchorY.HasValue && _previewAnchorMatrixX.HasValue && _previewAnchorMatrixY.HasValue)
+            {
+                matrixX = _previewAnchorMatrixX.Value;
+                matrixY = _previewAnchorMatrixY.Value;
+                ax = _previewAnchorX.Value;
+                ay = _previewAnchorY.Value;
+            }
+            else
+                return;
             _previewPathTiles.Clear();
             _previewCommandMarkers.Clear();
             _previewPathSegments.Clear();
-            _previewAnchorMatrixX = null;
-            _previewAnchorMatrixY = null;
-            var anchor = GetMovementPreviewAnchor();
-            if (anchor == null) { _previewAnchorX = _previewAnchorY = null; return; }
-            int mapSize = MapFile.mapSize;
-            int matrixX = (int)eventMatrixXUpDown.Value;
-            int matrixY = (int)eventMatrixYUpDown.Value;
-            _previewAnchorX = anchor.Value.x;
-            _previewAnchorY = anchor.Value.y;
+            _previewAnchorX = ax;
+            _previewAnchorY = ay;
             _previewAnchorMatrixX = matrixX;
             _previewAnchorMatrixY = matrixY;
-            int gx = matrixX * mapSize + anchor.Value.x;
-            int gy = matrixY * mapSize + anchor.Value.y;
-            var container = GetCurrentActionContainer();
-            if (container == null) return;
+            int gx = matrixX * mapSize + ax;
+            int gy = matrixY * mapSize + ay;
             var map = MovementDirectionDeltaMap.Get();
             _previewPathTiles.Add((gx, gy));
             int commandIndex = 1;

@@ -221,10 +221,13 @@ namespace DSPRE.Editors
 
         private void DisplayActiveEvents()
         {
-            eventPictureBox.Image = new Bitmap(eventPictureBox.Width, eventPictureBox.Height);
+            int w = Math.Max(1, eventPictureBox.Width);
+            int h = Math.Max(1, eventPictureBox.Height);
+            eventPictureBox.Image = new Bitmap(w, h);
 
             using (Graphics g = Graphics.FromImage(eventPictureBox.Image))
             {
+                g.Clear(Color.Transparent);
                 Bitmap icon;
 
                 /* Draw spawnables */
