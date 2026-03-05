@@ -1,4 +1,4 @@
-﻿using DSPRE.ROMFiles;
+using DSPRE.ROMFiles;
 using Ekona.Images;
 using System;
 using System.Collections;
@@ -84,6 +84,22 @@ namespace DSPRE.Editors
                     ushort? musicN = gameFamily == GameFamilies.HGSS ? ar.ReadUInt16() : (ushort?)null;
                     trainerClassEncounterMusicDict[tclass] = (entryOffset, musicD, musicN);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Gets the number of trainers in the trainer combobox.
+        /// </summary>
+        public int TrainerCount => trainerComboBox?.Items.Count ?? 0;
+
+        /// <summary>
+        /// Selects the trainer at the given 0-based index.
+        /// </summary>
+        public void SelectTrainerByIndex(int index)
+        {
+            if (trainerComboBox != null && index >= 0 && index < trainerComboBox.Items.Count)
+            {
+                trainerComboBox.SelectedIndex = index;
             }
         }
 

@@ -144,10 +144,7 @@ namespace DSPRE
         public void GoToTrainer(int trainerID)
         {
             EditorPanels.trainerEditor.SetupTrainerEditor(this);
-            if (trainerID >= 0 && trainerID < EditorPanels.trainerEditor.trainerComboBox.Items.Count)
-            {
-                EditorPanels.trainerEditor.trainerComboBox.SelectedIndex = trainerID;
-            }
+            EditorPanels.trainerEditor.SelectTrainerByIndex(trainerID);
             
             if (EditorPanels.PopoutRegistry.TryGetHost(EditorPanels.trainerEditor, out var host))
             {

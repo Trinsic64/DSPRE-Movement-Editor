@@ -1817,50 +1817,6 @@ namespace DSPRE.Editors
             this.triggerLogicGroupBox.TabStop = false;
             this.triggerLogicGroupBox.Text = "Logic";
             // 
-            // triggerVarHexModeRadioButton
-            // 
-            this.triggerVarHexModeRadioButton.AutoSize = true;
-            this.triggerVarHexModeRadioButton.Location = new System.Drawing.Point(90, 56);
-            this.triggerVarHexModeRadioButton.Name = "triggerVarHexModeRadioButton";
-            this.triggerVarHexModeRadioButton.Size = new System.Drawing.Size(44, 17);
-            this.triggerVarHexModeRadioButton.TabIndex = 41;
-            this.triggerVarHexModeRadioButton.Text = "Hex";
-            this.triggerVarHexModeRadioButton.UseVisualStyleBackColor = true;
-            this.triggerVarHexModeRadioButton.CheckedChanged += new System.EventHandler(this.triggerVarModeRadioButton_CheckedChanged);
-            // 
-            // triggerVarDecimalModeRadioButton
-            // 
-            this.triggerVarDecimalModeRadioButton.AutoSize = true;
-            this.triggerVarDecimalModeRadioButton.Checked = true;
-            this.triggerVarDecimalModeRadioButton.Location = new System.Drawing.Point(17, 56);
-            this.triggerVarDecimalModeRadioButton.Name = "triggerVarDecimalModeRadioButton";
-            this.triggerVarDecimalModeRadioButton.Size = new System.Drawing.Size(63, 17);
-            this.triggerVarDecimalModeRadioButton.TabIndex = 40;
-            this.triggerVarDecimalModeRadioButton.TabStop = true;
-            this.triggerVarDecimalModeRadioButton.Text = "Decimal";
-            this.triggerVarDecimalModeRadioButton.UseVisualStyleBackColor = true;
-            this.triggerVarDecimalModeRadioButton.CheckedChanged += new System.EventHandler(this.triggerVarModeRadioButton_CheckedChanged);
-            // 
-            // triggerVarWatchedHexTextBox
-            // 
-            this.triggerVarWatchedHexTextBox.Location = new System.Drawing.Point(17, 36);
-            this.triggerVarWatchedHexTextBox.MaxLength = 6;
-            this.triggerVarWatchedHexTextBox.Name = "triggerVarWatchedHexTextBox";
-            this.triggerVarWatchedHexTextBox.Size = new System.Drawing.Size(71, 20);
-            this.triggerVarWatchedHexTextBox.TabIndex = 42;
-            this.triggerVarWatchedHexTextBox.Visible = false;
-            this.triggerVarWatchedHexTextBox.TextChanged += new System.EventHandler(this.triggerVarWatchedHexTextBox_TextChanged);
-            // 
-            // triggerExpectedValueHexTextBox
-            // 
-            this.triggerExpectedValueHexTextBox.Location = new System.Drawing.Point(112, 36);
-            this.triggerExpectedValueHexTextBox.MaxLength = 6;
-            this.triggerExpectedValueHexTextBox.Name = "triggerExpectedValueHexTextBox";
-            this.triggerExpectedValueHexTextBox.Size = new System.Drawing.Size(71, 20);
-            this.triggerExpectedValueHexTextBox.TabIndex = 43;
-            this.triggerExpectedValueHexTextBox.Visible = false;
-            this.triggerExpectedValueHexTextBox.TextChanged += new System.EventHandler(this.triggerExpectedValueHexTextBox_TextChanged);
-            // 
             // expectedVarValueTriggerUpDown
             // 
             this.expectedVarValueTriggerUpDown.Location = new System.Drawing.Point(112, 36);
@@ -2193,7 +2149,6 @@ namespace DSPRE.Editors
             this.triggersListBox.Size = new System.Drawing.Size(190, 290);
             this.triggersListBox.TabIndex = 4;
             this.triggersListBox.SelectedIndexChanged += new System.EventHandler(this.triggersListBox_SelectedIndexChanged);
-            this.triggersListBox.DoubleClick += new System.EventHandler(this.triggersListBox_DoubleClick);
             // 
             // movementEditorTabPage
             // 
