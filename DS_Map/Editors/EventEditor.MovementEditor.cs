@@ -63,12 +63,14 @@ namespace DSPRE.Editors
 
         private ScriptFile _movementEditorScriptFile;
         private int _selectedActionIndex = -1;
-        private List<(int x, int y)> _previewPathTiles = new List<(int x, int y)>();
-        private List<(int x, int y, int commandIndex)> _previewCommandMarkers = new List<(int x, int y, int commandIndex)>();
-        private List<(int x1, int y1, int x2, int y2, int commandRow)> _previewPathSegments = new List<(int x1, int y1, int x2, int y2, int commandRow)>();
+        private List<(int gx, int gy)> _previewPathTiles = new List<(int gx, int gy)>();
+        private List<(int gx, int gy, int commandIndex)> _previewCommandMarkers = new List<(int gx, int gy, int commandIndex)>();
+        private List<(int gx1, int gy1, int gx2, int gy2, int commandRow)> _previewPathSegments = new List<(int gx1, int gy1, int gx2, int gy2, int commandRow)>();
         private readonly HashSet<int> _previewSelectedCommandRows = new HashSet<int>();
         private int? _previewAnchorX;
         private int? _previewAnchorY;
+        private int? _previewAnchorMatrixX;
+        private int? _previewAnchorMatrixY;
         private readonly Stack<MovementEditorUndoState> _movementUndoStack = new Stack<MovementEditorUndoState>();
         private readonly Stack<MovementEditorUndoState> _movementRedoStack = new Stack<MovementEditorUndoState>();
         private string _sessionMovementSet;
@@ -2103,15 +2105,23 @@ namespace DSPRE.Editors
             _previewPathTiles.Clear();
             _previewCommandMarkers.Clear();
             _previewPathSegments.Clear();
+            _previewAnchorMatrixX = null;
+            _previewAnchorMatrixY = null;
             var anchor = GetMovementPreviewAnchor();
             if (anchor == null) { _previewAnchorX = _previewAnchorY = null; return; }
+            int mapSize = MapFile.mapSize;
+            int matrixX = (int)eventMatrixXUpDown.Value;
+            int matrixY = (int)eventMatrixYUpDown.Value;
             _previewAnchorX = anchor.Value.x;
             _previewAnchorY = anchor.Value.y;
+            _previewAnchorMatrixX = matrixX;
+            _previewAnchorMatrixY = matrixY;
+            int gx = matrixX * mapSize + anchor.Value.x;
+            int gy = matrixY * mapSize + anchor.Value.y;
             var container = GetCurrentActionContainer();
             if (container == null) return;
             var map = MovementDirectionDeltaMap.Get();
-            int x = anchor.Value.x, y = anchor.Value.y;
-            _previewPathTiles.Add((x, y));
+            _previewPathTiles.Add((gx, gy));
             int commandIndex = 1;
             foreach (var cmd in container.commands)
             {
@@ -2121,15 +2131,15 @@ namespace DSPRE.Editors
                 {
                     for (int i = 0; i < n; i++)
                     {
-                        int prevX = x;
-                        int prevY = y;
-                        x += delta.dx;
-                        y += delta.dy;
-                        _previewPathSegments.Add((prevX, prevY, x, y, commandIndex - 1));
-                        _previewPathTiles.Add((x, y));
+                        int prevGx = gx;
+                        int prevGy = gy;
+                        gx += delta.dx;
+                        gy += delta.dy;
+                        _previewPathSegments.Add((prevGx, prevGy, gx, gy, commandIndex - 1));
+                        _previewPathTiles.Add((gx, gy));
                     }
                 }
-                _previewCommandMarkers.Add((x, y, commandIndex));
+                _previewCommandMarkers.Add((gx, gy, commandIndex));
                 commandIndex++;
             }
         }

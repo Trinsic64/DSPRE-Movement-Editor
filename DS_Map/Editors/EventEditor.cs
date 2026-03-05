@@ -1,4 +1,4 @@
-﻿using DSPRE.Resources;
+using DSPRE.Resources;
 using DSPRE.ROMFiles;
 using Ekona.Images.Formats;
 using LibNDSFormats.NSBMD;
@@ -316,7 +316,7 @@ namespace DSPRE.Editors
                     }
                 }
 
-                /* Movement Editor preview overlay */
+                /* Movement Editor preview overlay (cell-aware: only draw path in current matrix cell) */
                 if (movementEditorTabPage != null && eventsTabControl.SelectedTab == movementEditorTabPage && _previewPathTiles != null && _previewPathTiles.Count > 0 &&
                     _previewAnchorX.HasValue && _previewAnchorY.HasValue)
                 {
@@ -327,65 +327,161 @@ namespace DSPRE.Editors
             eventPictureBox.Invalidate();
         }
 
+        private static void GlobalToCellAndLocal(int gx, int gy, int mapSize, out int cellX, out int cellY, out int localX, out int localY)
+        {
+            cellX = (int)Math.Floor(gx / (double)mapSize);
+            cellY = (int)Math.Floor(gy / (double)mapSize);
+            localX = gx - cellX * mapSize;
+            localY = gy - cellY * mapSize;
+        }
+
+        private static bool ClipSegmentToCell(int gx1, int gy1, int gx2, int gy2, int curMx, int curMy, int mapSize,
+            out float t0, out float t1)
+        {
+            int rx0 = curMx * mapSize;
+            int ry0 = curMy * mapSize;
+            int rx1 = rx0 + mapSize - 1;
+            int ry1 = ry0 + mapSize - 1;
+            int dx = gx2 - gx1;
+            int dy = gy2 - gy1;
+            float tLow = 0f;
+            float tHigh = 1f;
+            if (dx != 0)
+            {
+                float tx0 = (rx0 - gx1) / (float)dx;
+                float tx1 = (rx1 - gx1) / (float)dx;
+                float txMin = Math.Min(tx0, tx1);
+                float txMax = Math.Max(tx0, tx1);
+                tLow = Math.Max(tLow, txMin);
+                tHigh = Math.Min(tHigh, txMax);
+            }
+            else if (gx1 < rx0 || gx1 > rx1)
+            {
+                t0 = t1 = 0f;
+                return false;
+            }
+            if (dy != 0)
+            {
+                float ty0 = (ry0 - gy1) / (float)dy;
+                float ty1 = (ry1 - gy1) / (float)dy;
+                float tyMin = Math.Min(ty0, ty1);
+                float tyMax = Math.Max(ty0, ty1);
+                tLow = Math.Max(tLow, tyMin);
+                tHigh = Math.Min(tHigh, tyMax);
+            }
+            else if (gy1 < ry0 || gy1 > ry1)
+            {
+                t0 = t1 = 0f;
+                return false;
+            }
+            if (tLow >= tHigh)
+            {
+                t0 = t1 = 0f;
+                return false;
+            }
+            t0 = tLow;
+            t1 = tHigh;
+            return true;
+        }
+
         private void DrawMovementPreviewOverlay(Graphics g)
         {
             if (_previewPathTiles == null || _previewPathTiles.Count == 0) return;
+            int mapSize = MapFile.mapSize;
+            int curMx = (int)eventMatrixXUpDown.Value;
+            int curMy = (int)eventMatrixYUpDown.Value;
             bool showPath = movementShowPathCheckBox?.Checked ?? true;
             bool showGhost = movementShowGhostCheckBox?.Checked ?? true;
             bool showMarkers = movementShowMarkersCheckBox?.Checked ?? true;
             int ts = tileSize + 1;
             g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            if (showPath)
+
+            if (showPath && _previewPathSegments != null && _previewPathSegments.Count > 0)
             {
                 using (var basePen = new Pen(Color.White, 3f))
                 using (var selectedPen = new Pen(Color.Yellow, 3f))
                 {
-                    if (_previewPathSegments != null && _previewPathSegments.Count > 0)
+                    foreach (var seg in _previewPathSegments)
                     {
-                        foreach (var segment in _previewPathSegments)
-                        {
-                            var pen = _previewSelectedCommandRows.Contains(segment.commandRow) ? selectedPen : basePen;
-                            Point start = new Point(segment.x1 * ts + ts / 2, segment.y1 * ts + ts / 2);
-                            Point end = new Point(segment.x2 * ts + ts / 2, segment.y2 * ts + ts / 2);
-                            g.DrawLine(pen, start, end);
-                        }
-                    }
-                    else if (_previewPathTiles.Count >= 2)
-                    {
-                        var points = _previewPathTiles.Select(p => new Point(p.x * ts + ts / 2, p.y * ts + ts / 2)).ToArray();
-                        g.DrawLines(basePen, points);
+                        if (!ClipSegmentToCell(seg.gx1, seg.gy1, seg.gx2, seg.gy2, curMx, curMy, mapSize, out float t0, out float t1))
+                            continue;
+                        int x1 = (int)(seg.gx1 + t0 * (seg.gx2 - seg.gx1));
+                        int y1 = (int)(seg.gy1 + t0 * (seg.gy2 - seg.gy1));
+                        int x2 = (int)(seg.gx1 + t1 * (seg.gx2 - seg.gx1));
+                        int y2 = (int)(seg.gy1 + t1 * (seg.gy2 - seg.gy1));
+                        GlobalToCellAndLocal(x1, y1, mapSize, out _, out _, out int lx1, out int ly1);
+                        GlobalToCellAndLocal(x2, y2, mapSize, out _, out _, out int lx2, out int ly2);
+                        var pen = _previewSelectedCommandRows.Contains(seg.commandRow) ? selectedPen : basePen;
+                        Point start = new Point(lx1 * ts + ts / 2, ly1 * ts + ts / 2);
+                        Point end = new Point(lx2 * ts + ts / 2, ly2 * ts + ts / 2);
+                        g.DrawLine(pen, start, end);
                     }
                 }
             }
+            else if (showPath && _previewPathTiles.Count >= 2)
+            {
+                var inCell = _previewPathTiles.Where(p =>
+                {
+                    GlobalToCellAndLocal(p.gx, p.gy, mapSize, out int cx, out int cy, out _, out _);
+                    return cx == curMx && cy == curMy;
+                }).Select(p =>
+                {
+                    GlobalToCellAndLocal(p.gx, p.gy, mapSize, out _, out _, out int lx, out int ly);
+                    return new Point(lx * ts + ts / 2, ly * ts + ts / 2);
+                }).ToArray();
+                if (inCell.Length >= 2)
+                {
+                    using (var basePen = new Pen(Color.White, 3f))
+                        g.DrawLines(basePen, inCell);
+                }
+            }
+
             if (showMarkers)
             {
                 using (var font = new Font("Segoe UI", 12f, FontStyle.Bold))
                 using (var brush = new SolidBrush(Color.White))
                 using (var outlineBrush = new SolidBrush(Color.Black))
                 {
+                    if (_previewAnchorMatrixX == curMx && _previewAnchorMatrixY == curMy && _previewAnchorX.HasValue && _previewAnchorY.HasValue)
+                    {
+                        int cx = _previewAnchorX.Value * ts + ts / 2;
+                        int cy = _previewAnchorY.Value * ts + ts / 2;
+                        DrawMovementPreviewMarker(g, font, brush, outlineBrush, cx, cy, "0");
+                    }
                     foreach (var marker in _previewCommandMarkers)
                     {
-                        int cx = marker.x * ts + ts / 2;
-                        int cy = marker.y * ts + ts / 2;
-                        string num = marker.commandIndex.ToString();
-                        var size = g.MeasureString(num, font);
-                        float tx = cx - size.Width / 2f;
-                        float ty = cy - size.Height / 2f;
-                        for (int dx = -1; dx <= 1; dx++)
-                            for (int dy = -1; dy <= 1; dy++)
-                                if (dx != 0 || dy != 0)
-                                    g.DrawString(num, font, outlineBrush, tx + dx, ty + dy);
-                        g.DrawString(num, font, brush, tx, ty);
+                        GlobalToCellAndLocal(marker.gx, marker.gy, mapSize, out int cx, out int cy, out _, out _);
+                        if (cx != curMx || cy != curMy) continue;
+                        GlobalToCellAndLocal(marker.gx, marker.gy, mapSize, out _, out _, out int lx, out int ly);
+                        int px = lx * ts + ts / 2;
+                        int py = ly * ts + ts / 2;
+                        DrawMovementPreviewMarker(g, font, brush, outlineBrush, px, py, marker.commandIndex.ToString());
                     }
                 }
             }
             if (showGhost && _previewPathTiles.Count > 0)
             {
                 var last = _previewPathTiles[_previewPathTiles.Count - 1];
-                int gx = last.x * ts;
-                int gy = last.y * ts;
-                g.FillRectangle(Brushes.White, gx + 2, gy + 2, ts - 4, ts - 4);
+                GlobalToCellAndLocal(last.gx, last.gy, mapSize, out int lcx, out int lcy, out int lx, out int ly);
+                if (lcx == curMx && lcy == curMy)
+                {
+                    int gx = lx * ts;
+                    int gy = ly * ts;
+                    g.FillRectangle(Brushes.White, gx + 2, gy + 2, ts - 4, ts - 4);
+                }
             }
+        }
+
+        private static void DrawMovementPreviewMarker(Graphics g, Font font, Brush brush, Brush outlineBrush, int px, int py, string num)
+        {
+            var size = g.MeasureString(num, font);
+            float tx = px - size.Width / 2f;
+            float ty = py - size.Height / 2f;
+            for (int dx = -1; dx <= 1; dx++)
+                for (int dy = -1; dy <= 1; dy++)
+                    if (dx != 0 || dy != 0)
+                        g.DrawString(num, font, outlineBrush, tx + dx, ty + dy);
+            g.DrawString(num, font, brush, tx, ty);
         }
         private void DrawWarpCollisions(Graphics g)
         {
